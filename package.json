@@ -1,0 +1,20 @@
+{
+  "name": "kampo-news-automation",
+  "version": "1.0.0",
+  "description": "Automated herbal news collector and static site updater",
+  "main": "scripts/run_job.js",
+  "scripts": {
+    "crawl": "node scripts/run_job.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@mozilla/readability": "^0.6.0",
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.7",
+    "jsdom": "^25.0.1",
+    "mongoose": "^8.9.5",
+    "nodemailer": "^6.9.16",
+    "rss-parser": "^3.13.0",
+    "turndown": "^7.2.0"
+  }
+}
