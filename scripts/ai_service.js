@@ -406,17 +406,20 @@ async function runUpdateJob() {
     }
     const uniqueItems = Array.from(uniqueItemsMap.values());
 
-    // 1. 各記事の本文スクレイピングと初期オブジェクト構築
-    const rawCandidates = [];
-    for (const item of uniqueItems) {
-      const exists = await Article.findOne({ url: item.link }).lean();
-      if (exists) {
-        continue; // 既に保存済みならスキップ
-      }
+    // 1. DBの一括チェックと並列スクレイピングによる超高速化
+    const allLinks = uniqueItems.map(item => item.link);
+    const existingDocList = await Article.find({ url: { $in: allLinks } }, 'url').lean();
+    const existingUrlSet = new Set(existingDocList.map(d => d.url));
 
-      console.log(`Scraping content: ${item.title}`);
+    const pendingItems = uniqueItems.filter(item => !existingUrlSet.has(item.link));
+    console.log(`Found ${pendingItems.length} new items not in DB (Total unique items: ${uniqueItems.length})`);
+
+    // 1回のジョブで処理する最大件数を15件に制限（タイムアウト防止とレート制限対策）
+    const itemsToProcess = pendingItems.slice(0, 15);
+
+    // 並列スクレイピング（同時実行数 4）
+    async function scrapeItem(item) {
       let contentToProcess = item.contentSnippet || item.content || item.title;
-
       try {
         const finalUrl = item.link;
         if (finalUrl.toLowerCase().endsWith('.pdf')) {
@@ -424,18 +427,14 @@ async function runUpdateJob() {
         } else {
           const { html } = await fetchHtmlWithEncoding(finalUrl, {
             headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36' },
-            timeout: 10000
+            timeout: 8000
           });
 
           const dom = new JSDOM(html, { url: finalUrl });
           const document = dom.window.document;
           
-          document.querySelectorAll('img').forEach(img => {
-            if (img.src) img.src = img.src;
-          });
-          document.querySelectorAll('a').forEach(a => {
-            if (a.href) a.href = a.href;
-          });
+          document.querySelectorAll('img').forEach(img => { if (img.src) img.src = img.src; });
+          document.querySelectorAll('a').forEach(a => { if (a.href) a.href = a.href; });
 
           const reader = new Readability(document);
           const article = reader.parse();
@@ -444,24 +443,33 @@ async function runUpdateJob() {
           }
         }
       } catch (e) {
-        console.warn(`Failed to scrape article content for ${item.link}:`, e.message);
+        console.warn(`Scrape warning for ${item.link}: ${e.message}`);
       }
 
-      // 短すぎる記事の足切り
       if (!item.isDirectScrape && item.category !== 'news' && (contentToProcess.length < 200 || contentToProcess === item.title || contentToProcess === item.contentSnippet)) {
-        console.log(`Skipping: Article content is too short or missing. (${contentToProcess.length} chars)`);
-        continue;
+        return null;
       }
 
-      rawCandidates.push({
+      return {
         item,
         title: item.title,
         link: item.link,
         url: item.link,
         published_at: item.pubDate ? new Date(item.pubDate) : null,
         contentToProcess
-      });
+      };
     }
+
+    const rawCandidates = [];
+    const concurrency = 4;
+    for (let i = 0; i < itemsToProcess.length; i += concurrency) {
+      const chunk = itemsToProcess.slice(i, i + concurrency);
+      const results = await Promise.all(chunk.map(scrapeItem));
+      for (const res of results) {
+        if (res) rawCandidates.push(res);
+      }
+    }
+    console.log(`Successfully scraped ${rawCandidates.length} candidate articles.`);
 
     // 2. 新規記事リスト内での事前重複排除（新規同士の比較）
     const selectedNewCandidates = [];
@@ -526,7 +534,7 @@ async function runUpdateJob() {
       console.log(`Processing AI for: ${cand.title}`);
       try {
         const apiResult = await processArticleWithGemini(contentToProcess, cand.title, item.category);
-        await new Promise(resolve => setTimeout(resolve, 10000));
+        await new Promise(resolve => setTimeout(resolve, 5000));
 
         if (!apiResult || !apiResult.is_relevant || (apiResult.summary && (apiResult.summary.includes('UNRELATED') || apiResult.summary.includes('SPAM')))) {
           console.log(`[除外] 業界無関係または不適合な記事をスキップ: ${cand.title}`);
