@@ -1,1 +1,197 @@
-:root{--bg-color:#faf9f6;--surface-color:#ffffffd9;--surface-border:#5e715326;--text-primary:#2d3725;--text-secondary:#5e7153;--accent-color:#558b2f;--accent-glow:#558b2f4d;--tag-bg:#558b2f1a;--tag-text:#33691e;--danger-color:#ef4444;--success-color:#10b981;--font-family:"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif}*{box-sizing:border-box;margin:0;padding:0}body{background-color:var(--bg-color);color:var(--text-primary);font-family:var(--font-family);-webkit-font-smoothing:antialiased;background-image:radial-gradient(at 0 0,#558b2f1a 0,#0000 50%),radial-gradient(at 100% 100%,#8bc34a1a 0,#0000 50%);background-attachment:fixed;min-height:100vh}.glass-panel{background:var(--surface-color);-webkit-backdrop-filter:blur(12px);border:1px solid var(--surface-border);border-radius:16px;box-shadow:0 4px 30px #0000000d}.container{max-width:800px;margin:0 auto;padding:2rem 1rem}@keyframes fadeIn{0%{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}.animate-fade-in{animation:.4s ease-out forwards fadeIn}@keyframes spin{0%{transform:rotate(0)}to{transform:rotate(360deg)}}.animate-spin{animation:1.5s linear infinite spin}.btn{cursor:pointer;font-weight:600;font-family:var(--font-family);border:none;border-radius:8px;justify-content:center;align-items:center;gap:.5rem;padding:.75rem 1.5rem;transition:all .2s;display:inline-flex}.btn-primary{background-color:var(--accent-color);color:#fff;box-shadow:0 4px 15px var(--accent-glow)}.btn-primary:hover{box-shadow:0 6px 20px var(--accent-glow);background-color:#33691e;transform:translateY(-2px)}.btn-icon{color:var(--text-secondary);background:0 0;border:1px solid #0000;border-radius:50%;padding:.5rem}.btn-icon:hover{color:var(--text-primary);background:#0000000d}h1,h2,h3{letter-spacing:-.025em}.app-header{justify-content:space-between;align-items:center;gap:1rem;margin-bottom:2rem;display:flex}.app-header-title h1{align-items:center;gap:.75rem;margin:0;font-size:2rem;display:flex}.app-header-title p{color:var(--text-secondary);margin-top:.25rem;margin-bottom:0;font-size:.9rem}.text-gradient{-webkit-text-fill-color:transparent;background-image:linear-gradient(90deg,#33691e,#827717);-webkit-background-clip:text;background-clip:text}.input-glass{border:1px solid var(--surface-border);color:var(--text-primary);font-family:var(--font-family);background:#ffffff80;border-radius:8px;outline:none;padding:.75rem 1rem;transition:all .2s}.input-glass:focus{border-color:var(--accent-color);box-shadow:0 0 0 2px var(--accent-glow);background:#fff}::-webkit-scrollbar{width:8px}::-webkit-scrollbar-track{background:var(--bg-color)}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}::-webkit-scrollbar-thumb:hover{background:#94a3b8}@media (width<=768px){.app-header{flex-direction:column;align-items:flex-start}.app-header-title h1{font-size:1.5rem}}
+:root {
+  --bg-color: #f7f9f6;
+  --surface-color: #ffffff;
+  --surface-border: #e2e8df;
+  --text-primary: #1f291e;
+  --text-secondary: #5a6e54;
+  --accent-color: #2e7d32;
+  --accent-hover: #1b5e20;
+  --tag-bg: #e8f5e9;
+  --tag-text: #2e7d32;
+  --danger-color: #e53935;
+  --success-color: #43a047;
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-primary);
+  font-family: var(--font-family);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  line-height: 1.6;
+}
+
+.container {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 1rem 0.85rem;
+}
+
+/* ヘッダーのスマホ最適化 */
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--surface-border);
+}
+
+.app-header-title h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #2e7d32;
+  margin: 0;
+}
+
+.app-header-title p {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  margin-top: 0.2rem;
+}
+
+/* タブボタングループ */
+.app-header > div:last-child {
+  background: #eef3eb !important;
+  border-radius: 20px !important;
+  padding: 0.2rem !important;
+}
+
+.btn {
+  cursor: pointer;
+  font-weight: 600;
+  font-family: var(--font-family);
+  border: none;
+  border-radius: 16px !important;
+  justify-content: center;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.5rem 1rem !important;
+  font-size: 0.85rem !important;
+  transition: all 0.2s ease;
+  display: inline-flex;
+}
+
+.btn-primary {
+  background-color: #2e7d32 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 6px rgba(46, 125, 50, 0.25) !important;
+}
+
+/* 記事カードのシンプル・クリーン化 */
+.glass-panel {
+  background: #ffffff !important;
+  border: 1px solid var(--surface-border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  overflow: hidden;
+}
+
+.news-card {
+  padding: 1.15rem 1rem !important;
+  background: #ffffff !important;
+  border-bottom: 1px solid var(--surface-border) !important;
+  transition: background-color 0.15s ease !important;
+}
+
+.news-card:hover, .news-card:active {
+  background-color: #fafcf9 !important;
+}
+
+.news-card:last-child {
+  border-bottom: none !important;
+}
+
+/* 記事タイトルのフォント調整 */
+.news-card h2 {
+  font-size: 1.05rem !important;
+  line-height: 1.45 !important;
+  font-weight: 600 !important;
+  color: var(--text-primary) !important;
+}
+
+/* 要約テキスト */
+.news-card p {
+  font-size: 0.9rem !important;
+  line-height: 1.55 !important;
+  color: #374151 !important;
+}
+
+/* タグデザインのシンプル化 */
+.news-card span[style*="tag-bg"],
+.news-card span[style*="rgba(85, 139, 47"] {
+  background: var(--tag-bg) !important;
+  color: var(--tag-text) !important;
+  border: none !important;
+  border-radius: 6px !important;
+  font-size: 0.75rem !important;
+  padding: 0.2rem 0.55rem !important;
+  font-weight: 500 !important;
+}
+
+/* 詳細モーダル・記事本文画面 */
+article.glass-panel {
+  padding: 1.25rem 1rem !important;
+}
+
+article.glass-panel h1 {
+  font-size: 1.25rem !important;
+  line-height: 1.4 !important;
+}
+
+article.glass-panel .article-content,
+article.glass-panel div[style*="lineHeight: 1.8"] {
+  font-size: 0.95rem !important;
+  line-height: 1.7 !important;
+}
+
+/* アニメーション */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: 0.25s ease-out forwards fadeIn;
+}
+
+/* モバイル表示の微調整 */
+@media (max-width: 640px) {
+  .container {
+    padding: 0.75rem 0.65rem;
+  }
+  .app-header {
+    flex-direction: row;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  .app-header-title h1 {
+    font-size: 1.15rem;
+  }
+  .app-header-title p {
+    display: none; /* スマホではサブタイトルを隠して省スペース化 */
+  }
+  .btn {
+    padding: 0.45rem 0.85rem !important;
+    font-size: 0.82rem !important;
+  }
+  .news-card {
+    padding: 1rem 0.85rem !important;
+  }
+  .news-card h2 {
+    font-size: 1rem !important;
+  }
+}

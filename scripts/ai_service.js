@@ -681,8 +681,15 @@ function areDuplicateArticles(a, b) {
     return false;
   }
 
-  const cleanA = cleanTitle(a.title);
-  const cleanB = cleanTitle(b.title);
+  // 商標記号の統一除去 (R, Ⓡ, TM, ©)
+  const normSymbols = (str) => {
+    return (str || '')
+      .replace(/[\(（][rR][\)）]/g, '')
+      .replace(/[®Ⓡ™©]/g, '');
+  };
+
+  const cleanA = cleanTitle(normSymbols(a.title));
+  const cleanB = cleanTitle(normSymbols(b.title));
 
   if (cleanA && cleanB) {
     if (cleanA === cleanB) return true;
@@ -701,23 +708,42 @@ function areDuplicateArticles(a, b) {
       if (strippedPrefixLen >= 12 && (strippedPrefixLen / strippedMinLen >= 0.7)) {
         return true;
       }
-      if ((strippedA.includes(strippedB) && strippedB.length >= 12 && strippedB.length / strippedA.length >= 0.8) ||
-          (strippedB.includes(strippedA) && strippedA.length >= 12 && strippedA.length / strippedB.length >= 0.8)) {
+      if ((strippedA.includes(strippedB) && strippedB.length >= 10 && strippedB.length / strippedA.length >= 0.6) ||
+          (strippedB.includes(strippedA) && strippedA.length >= 10 && strippedA.length / strippedB.length >= 0.6)) {
         return true;
       }
     }
   }
 
-  const topicA = cleanTopic(a.topic_name);
-  const topicB = cleanTopic(b.topic_name);
+  // トピック名の精密一致（商品・ニュース共通）
+  const topicA = cleanTopic(normSymbols(a.topic_name));
+  const topicB = cleanTopic(normSymbols(b.topic_name));
   if (topicA && topicB) {
-    if (topicA === topicB && topicA.length >= 8) return true;
+    if (topicA === topicB && topicA.length >= 6) return true;
+    
+    const actionWords = /(新製品発売|新発売|発売のご案内|発売|自主回収|出荷調整|販売終了|タイアップ|コラボ|自主回収のお知らせ)/g;
+    const coreTopicA = topicA.replace(actionWords, '');
+    const coreTopicB = topicB.replace(actionWords, '');
+    
+    // コア製品名・トピックが一致し、かつ両方に同一のアクション（例: 発売）が含まれている場合
+    if (coreTopicA && coreTopicB && coreTopicA === coreTopicB && coreTopicA.length >= 6) {
+      const hasLaunchA = /(発売|新発売|新製品)/.test(topicA);
+      const hasLaunchB = /(発売|新発売|新製品)/.test(topicB);
+      if (hasLaunchA === hasLaunchB) return true;
+    }
+
+    if (coreTopicA.length >= 8 && coreTopicB.length >= 8) {
+      if (coreTopicA.includes(coreTopicB) || coreTopicB.includes(coreTopicA)) {
+        return true;
+      }
+    }
+
     let topicPrefixLen = 0;
     const topicMin = Math.min(topicA.length, topicB.length);
     while (topicPrefixLen < topicMin && topicA[topicPrefixLen] === topicB[topicPrefixLen]) {
       topicPrefixLen++;
     }
-    if (topicPrefixLen >= 12 && (topicPrefixLen / topicMin >= 0.8)) {
+    if (topicPrefixLen >= 10 && (topicPrefixLen / topicMin >= 0.7)) {
       return true;
     }
   }
