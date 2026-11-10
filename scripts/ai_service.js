@@ -668,11 +668,59 @@ function getArticleScore(a) {
   return isPaywall ? len - 100000 : len;
 }
 
+// 企業の決算・業績報告判定
+function isEarningsReport(a) {
+  const text = ((a.title || '') + ' ' + (a.topic_name || '')).toLowerCase();
+  const hasFinance = /決算|業績|経常|純利益|増益|増収|上方修正|下方修正|中間期|第[1-4１-４]四半期|[1-4１-４]q|通期/.test(text);
+  const isMarketComment = /目標株価|レーティング|後場コメント|話題株先取り/.test(text);
+  return hasFinance && !isMarketComment;
+}
+
+function extractCompany(text) {
+  const m = (text || '').match(/ツムラ|クラシエ|小太郎漢方|養命酒|大杉製薬|ロート製薬|ゼリア新薬|救心製薬|大正製薬|ウチダ和漢薬|三和生薬|栃本天海堂/);
+  return m ? m[0] : '';
+}
+
+function extractFiscalPeriod(text) {
+  if (/中間|第2四半期|２ｑ|2q|4〜9|4-9|上期/.test(text)) return 'Q2_中間';
+  if (/第1四半期|１ｑ|1q|4〜6|4-6/.test(text)) return 'Q1';
+  if (/第3四半期|３ｑ|3q|4〜12|4-12/.test(text)) return 'Q3';
+  if (/通期|期末|本決算/.test(text)) return '通期';
+  return '一般決算';
+}
+
 function areDuplicateArticles(a, b) {
   const dateA = a.published_at ? new Date(a.published_at).getTime() : 0;
   const dateB = b.published_at ? new Date(b.published_at).getTime() : 0;
   if (dateA && dateB && Math.abs(dateA - dateB) > 14 * 24 * 60 * 60 * 1000) {
     return false;
+  }
+
+  // 1. 【決算・業績報告の完全一本化】
+  // 同一企業の同一決算期（または直近7日以内の業績発表）は、見出しの数値表現が異なっていても同一イベントとして一本化
+  const isEarnA = isEarningsReport(a);
+  const isEarnB = isEarningsReport(b);
+  if (isEarnA && isEarnB) {
+    const compA = extractCompany(a.title + ' ' + (a.topic_name || ''));
+    const compB = extractCompany(b.title + ' ' + (b.topic_name || ''));
+    if (compA && compB && compA === compB) {
+      if (Math.abs(dateA - dateB) <= 7 * 24 * 60 * 60 * 1000) {
+        const perA = extractFiscalPeriod(a.title + ' ' + (a.topic_name || ''));
+        const perB = extractFiscalPeriod(b.title + ' ' + (b.topic_name || ''));
+        if (perA === perB || perA === '一般決算' || perB === '一般決算') {
+          return true;
+        }
+      }
+    }
+  }
+
+  // 2. 【大量保有報告書の一本化】
+  if (a.title.includes('大量保有') && b.title.includes('大量保有')) {
+    const compA = extractCompany(a.title);
+    const compB = extractCompany(b.title);
+    if (compA && compB && compA === compB && Math.abs(dateA - dateB) <= 7 * 24 * 60 * 60 * 1000) {
+      return true;
+    }
   }
 
   const hasCompanyA = (a.title || '').match(/^【(.*?)(\s*公式)?】/);
@@ -721,7 +769,7 @@ function areDuplicateArticles(a, b) {
   if (topicA && topicB) {
     if (topicA === topicB && topicA.length >= 6) return true;
     
-    const actionWords = /(新製品発売|新発売|発売のご案内|発売|自主回収|出荷調整|販売終了|タイアップ|コラボ|自主回収のお知らせ)/g;
+    const actionWords = /(新製品発売|新発売|発売のご案内|発売|自主回収|出荷調整|販売終了|タイアップ|コラボ|自主回収のお知らせ|決算報告|決算発表)/g;
     const coreTopicA = topicA.replace(actionWords, '');
     const coreTopicB = topicB.replace(actionWords, '');
     
