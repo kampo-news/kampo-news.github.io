@@ -641,6 +641,10 @@ function isPaywallArticle(title, content, url) {
 
 function cleanTitle(title) {
   if (!title) return '';
+  title = title
+    .replace(/[０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+    .replace(/[Ａ-Ｚａ-ｚ]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+  if (!title) return '';
   return title
     .replace(/^【[^】]*】\s*/, '')
     .replace(/^[[^]]*]\s*/, '')
@@ -663,17 +667,26 @@ function getArticleScore(a) {
   const content = a.original_content || a.contentToProcess || '';
   const url = a.url || a.link || '';
   const isPaywall = isPaywallArticle(title, content, url);
+  const isNoise = isStockMarketNoise(a);
   const len = content.length;
-  // 会員限定記事は大幅に減点（一般公開記事が常に優先されるようにする）
-  return isPaywall ? len - 100000 : len;
+  // 市況ノイズ記事や有料会員記事は大幅減点
+  let score = len;
+  if (isPaywall) score -= 100000;
+  if (isNoise) score -= 200000;
+  return score;
+}
+
+// 株式相場・市況ノイズ・アナリストコメント判定（漢方業界ニュースとして不要な記事）
+function isStockMarketNoise(a) {
+  const text = ((a.title || '') + ' ' + (a.topic_name || '') + ' ' + (a.summary || '')).toLowerCase();
+  return /アナリスト評価|アナリスト予想|レーティング|目標株価|後場コメント|前場コメント|話題株先取り|寄り付き|大量保有報告/.test(text);
 }
 
 // 企業の決算・業績報告判定
 function isEarningsReport(a) {
   const text = ((a.title || '') + ' ' + (a.topic_name || '')).toLowerCase();
   const hasFinance = /決算|業績|経常|純利益|増益|増収|上方修正|下方修正|中間期|第[1-4１-４]四半期|[1-4１-４]q|通期/.test(text);
-  const isMarketComment = /目標株価|レーティング|後場コメント|話題株先取り/.test(text);
-  return hasFinance && !isMarketComment;
+  return hasFinance && !isStockMarketNoise(a);
 }
 
 function extractCompany(text) {
@@ -690,26 +703,31 @@ function extractFiscalPeriod(text) {
 }
 
 function areDuplicateArticles(a, b) {
+  // 市況・相場ノイズ同士は除外
+  if (isStockMarketNoise(a) && isStockMarketNoise(b)) {
+    const compA = extractCompany(a.title);
+    const compB = extractCompany(b.title);
+    if (compA && compB && compA === compB) return true;
+  }
+
   const dateA = a.published_at ? new Date(a.published_at).getTime() : 0;
   const dateB = b.published_at ? new Date(b.published_at).getTime() : 0;
-  if (dateA && dateB && Math.abs(dateA - dateB) > 14 * 24 * 60 * 60 * 1000) {
+  if (dateA && dateB && Math.abs(dateA - dateB) > 21 * 24 * 60 * 60 * 1000) {
     return false;
   }
 
   // 1. 【決算・業績報告の完全一本化】
-  // 同一企業の同一決算期（または直近7日以内の業績発表）は、見出しの数値表現が異なっていても同一イベントとして一本化
+  // 同一企業の同一決算期、または「上方修正予告(10月末)」と「確定決算(11月)」は21日以内の同一業績ニュースとして完全一本化
   const isEarnA = isEarningsReport(a);
   const isEarnB = isEarningsReport(b);
   if (isEarnA && isEarnB) {
     const compA = extractCompany(a.title + ' ' + (a.topic_name || ''));
     const compB = extractCompany(b.title + ' ' + (b.topic_name || ''));
     if (compA && compB && compA === compB) {
-      if (Math.abs(dateA - dateB) <= 7 * 24 * 60 * 60 * 1000) {
-        const perA = extractFiscalPeriod(a.title + ' ' + (a.topic_name || ''));
-        const perB = extractFiscalPeriod(b.title + ' ' + (b.topic_name || ''));
-        if (perA === perB || perA === '一般決算' || perB === '一般決算') {
-          return true;
-        }
+      const perA = extractFiscalPeriod(a.title + ' ' + (a.topic_name || ''));
+      const perB = extractFiscalPeriod(b.title + ' ' + (b.topic_name || ''));
+      if (perA === perB || perA === '一般決算' || perB === '一般決算' || (perA === 'Q2_中間' && perB === '一般決算') || (perB === 'Q2_中間' && perA === '一般決算')) {
+        return true;
       }
     }
   }
@@ -718,7 +736,7 @@ function areDuplicateArticles(a, b) {
   if (a.title.includes('大量保有') && b.title.includes('大量保有')) {
     const compA = extractCompany(a.title);
     const compB = extractCompany(b.title);
-    if (compA && compB && compA === compB && Math.abs(dateA - dateB) <= 7 * 24 * 60 * 60 * 1000) {
+    if (compA && compB && compA === compB) {
       return true;
     }
   }
@@ -742,6 +760,16 @@ function areDuplicateArticles(a, b) {
   if (cleanA && cleanB) {
     if (cleanA === cleanB) return true;
 
+    // 前方一致判定（帯広センキュウ栽培など、同一タイトル・同一ニュースの完全判定）
+    let commonPrefixLen = 0;
+    const minLen = Math.min(cleanA.length, cleanB.length);
+    while (commonPrefixLen < minLen && cleanA[commonPrefixLen] === cleanB[commonPrefixLen]) {
+      commonPrefixLen++;
+    }
+    if (commonPrefixLen >= 12 && (commonPrefixLen / minLen >= 0.7)) {
+      return true;
+    }
+
     const boilerplate = /^(一般用医薬品|新発売|医療用漢方製剤|製品案内|お知らせ|ニュースリリース)[:：]?/;
     const strippedA = cleanA.replace(boilerplate, '');
     const strippedB = cleanB.replace(boilerplate, '');
@@ -763,21 +791,18 @@ function areDuplicateArticles(a, b) {
     }
   }
 
-  // トピック名の精密一致（商品・ニュース共通）
+  // トピック名の精密一致
   const topicA = cleanTopic(normSymbols(a.topic_name));
   const topicB = cleanTopic(normSymbols(b.topic_name));
   if (topicA && topicB) {
     if (topicA === topicB && topicA.length >= 6) return true;
     
-    const actionWords = /(新製品発売|新発売|発売のご案内|発売|自主回収|出荷調整|販売終了|タイアップ|コラボ|自主回収のお知らせ|決算報告|決算発表)/g;
+    const actionWords = /(新製品発売|新発売|発売のご案内|発売|自主回収|出荷調整|販売終了|タイアップ|コラボ|自主回収のお知らせ|決算報告|決算発表|業績上方修正|業績予想増額)/g;
     const coreTopicA = topicA.replace(actionWords, '');
     const coreTopicB = topicB.replace(actionWords, '');
     
-    // コア製品名・トピックが一致し、かつ両方に同一のアクション（例: 発売）が含まれている場合
     if (coreTopicA && coreTopicB && coreTopicA === coreTopicB && coreTopicA.length >= 6) {
-      const hasLaunchA = /(発売|新発売|新製品)/.test(topicA);
-      const hasLaunchB = /(発売|新発売|新製品)/.test(topicB);
-      if (hasLaunchA === hasLaunchB) return true;
+      return true;
     }
 
     if (coreTopicA.length >= 8 && coreTopicB.length >= 8) {
