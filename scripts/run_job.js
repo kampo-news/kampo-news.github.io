@@ -31,13 +31,15 @@ async function main() {
 
     // 3. メール通知の送信判定
     // 6時、12時、18時前後のジョブ、または新着記事がある場合は送信
+    // ★ メール送信タイミングの厳格化（変な時間の通知防止）
+    // 6時、12時、18時の定時枠のみに限定し、新着記事があっても中途半端な時間（9時や15時等）には送らない
     const isNotifyHour = (jstHour >= 5 && jstHour <= 7) || (jstHour >= 11 && jstHour <= 13) || (jstHour >= 17 && jstHour <= 19);
     
-    if (isNotifyHour || newArticlesCount > 0) {
-      console.log(`Triggering email notification (isNotifyHour: ${isNotifyHour}, newArticlesCount: ${newArticlesCount})...`);
+    if (isNotifyHour) {
+      console.log(`Triggering scheduled email notification for JST Hour ${jstHour} (range: since ${sinceHours} hours ago)...`);
       await sendEmailNotification(sinceTime);
     } else {
-      console.log('Skipping email notification (outside scheduled notify hours and no new articles).');
+      console.log(`Skipping email notification: Current JST Hour is ${jstHour}. Scheduled email notifications only run at 6:00, 12:00, and 18:00.`);
     }
 
     console.log('=== All tasks finished successfully ===');
