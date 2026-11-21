@@ -1,20 +1,27 @@
-name: Scheduled News Crawler & Updater
+name: Scheduled News Crawler & Exact-Time Mailer
 
 on:
   schedule:
-    # UTC時刻で指定（JST = UTC + 9時間）
-    - cron: '0 21 * * *'  # JST 06:00 (朝のニュースまとめ & メール通知)
-    - cron: '0 0 * * *'   # JST 09:00 (午前の巡回)
-    - cron: '0 3 * * *'   # JST 12:00 (昼のニュースまとめ & メール通知)
-    - cron: '0 6 * * *'   # JST 15:00 (午後の巡回)
-    - cron: '0 9 * * *'   # JST 18:00 (夕方のニュースまとめ & メール通知)
-  workflow_dispatch:      # GitHub画面から手動でいつでも実行可能
+    # ─── 30分前事前巡回 (ニュース収集・AI要約・サイト更新) ───
+    # UTC時刻 (JST = UTC + 9h)
+    - cron: '30 20 * * *'  # JST 05:30 (朝の事前巡回)
+    - cron: '30 2 * * *'   # JST 11:30 (昼の事前巡回)
+    - cron: '30 8 * * *'   # JST 17:30 (夕の事前巡回)
+    # 日中の追加巡回 (任意)
+    - cron: '0 0 * * *'    # JST 09:00
+    - cron: '0 6 * * *'    # JST 15:00
+
+    # ─── 定時ジャスト配信 (超軽量・数秒でGmail送信) ───
+    - cron: '0 21 * * *'   # JST 06:00 ジャスト
+    - cron: '0 3 * * *'    # JST 12:00 ジャスト
+    - cron: '0 9 * * *'    # JST 18:00 ジャスト
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  crawl-and-update:
+  run-task:
     runs-on: ubuntu-latest
     timeout-minutes: 25
 
@@ -31,7 +38,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run Crawler & AI Processing
+      # JST 6:00 / 12:00 / 18:00 (UTC 21:00, 03:00, 09:00) の場合はメール送信のみを数秒で実行
+      # それ以外の時刻（5:30, 11:30, 17:30 等）は事前巡回・AI要約を実行
+      - name: Execute Crawler or Exact-Time Digest
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -39,9 +48,25 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           NOTIFY_EMAIL: ${{ secrets.NOTIFY_EMAIL }}
           APP_URL: ${{ secrets.APP_URL }}
-        run: node scripts/run_job.js
+        run: |
+          # UTC時刻の分 (Minute) を取得
+          MINUTE=$(date -u +%M)
+          HOUR=$(date -u +%H)
+          echo "Current UTC Time is $HOUR:$MINUTE"
 
-      - name: Commit and push changes
+          # 00分（JST 6:00, 12:00, 18:00）の場合はメール送信ジョブ
+          if [ "$MINUTE" -ge "55" ] || [ "$MINUTE" -le "10" ]; then
+            if [ "$HOUR" = "21" ] || [ "$HOUR" = "03" ] || [ "$HOUR" = "3" ] || [ "$HOUR" = "09" ] || [ "$HOUR" = "9" ]; then
+              echo ">>> Running Exact-Time Email Digest Job <<<"
+              node scripts/send_digest.js
+              exit 0
+            fi
+          fi
+
+          echo ">>> Running Prior News Crawler & AI Processing Job <<<"
+          node scripts/run_job.js
+
+      - name: Commit and push changes (Articles JSON)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
